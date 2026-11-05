@@ -1,5 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from "react"
-import { api, type CaseContext, type Scene } from "./lib/api"
+import {
+  api,
+  INTERVIEW_SKIPPED,
+  type AssistantStatus,
+  type CaseContext,
+  type InterviewState,
+  type Scene,
+} from "./lib/api"
 import {
   MapContainer,
   TileLayer,
@@ -1537,6 +1544,12 @@ function App() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [chatText, setChatText] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // Entrevista pericial: la lleva chatbot-service (Ollama); aquí solo se muestra su estado.
+  const [chatbot, setChatbot] = useState<AssistantStatus | null>(null)
+  const [interview, setInterview] = useState<InterviewState | null>(null)
+  const [setupModalidad, setSetupModalidad] = useState("")
+  const [setupV1, setSetupV1] = useState("")
+  const [setupV2, setSetupV2] = useState("")
   const [currentZoom, setCurrentZoom] = useState(19)
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null)
   const [droppedItems, setDroppedItems] = useState<DroppedItem[]>([])
@@ -1572,6 +1585,9 @@ function App() {
   const activeTools = ribbonGroups[ribbon]
   // The UI hard-coded "EXP-0248" and ignored VITE_CASE_ID.
   const caseId = caseContext?.id ?? api.caseId
+  // Real interview progress; the 62% demo value is kept only when the local chatbot is not running.
+  const progressPercent = interview ? interview.progress : chatbot?.available ? 0 : 62
+  const stepsDone = Math.floor(progressPercent / 20)
   const mapViewMode = selectedFrame === 0 ? "location" : "scenario"
   const mapViewCenter: [number, number] =
     mapViewMode === "location" ? mapCenter : scenarioCenter
@@ -1659,8 +1675,43 @@ function App() {
   }, [])
 
   useEffect(() => {
+    let active = true
+    const load = async () => {
+      let status: AssistantStatus
+      try {
+        status = await api.getAssistantStatus()
+      } catch (error) {
+        if (active) {
+          setChatbot({
+            available: false,
+            modalidades: {},
+            hint: error instanceof Error ? error.message : undefined,
+          })
+        }
+        return
+      }
+      if (!active) return
+      setChatbot(status)
+      if (!status.available) return
+      try {
+        const state = await api.getInterview()
+        if (!active) return
+        setInterview(state)
+        setMessages(state.transcript)
+      } catch {
+        // 404: todavía no hay una entrevista para este expediente.
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (!feedback) return
-    const timer = window.setTimeout(() => setFeedback(""), 2200)
+    // Messages that include a hint need more than 2.2 s to be read.
+    const timer = window.setTimeout(() => setFeedback(""), Math.max(2200, feedback.length * 70))
     return () => window.clearTimeout(timer)
   }, [feedback])
 
@@ -1845,6 +1896,23 @@ function App() {
       `Escenas: ${frames.length}`,
       `Elementos colocados: ${droppedItems.length}`,
       ...droppedItems.map((item) => `- ${item.label} (${item.kind})`),
+      ...(interview
+        ? [
+            "",
+            `Entrevista pericial · modalidad: ${interview.modalidad} · avance: ${interview.progress}%`,
+            ...Object.entries(interview.vehiculos).map(([id, desc]) => `${id}: ${desc}`),
+            ...Object.entries(interview.estado).map(
+              ([tema, valor]) =>
+                `- ${tema}: ${
+                  valor === INTERVIEW_SKIPPED
+                    ? "(omitido)"
+                    : typeof valor === "string"
+                      ? valor
+                      : JSON.stringify(valor)
+                }`,
+            ),
+          ]
+        : []),
     ].join("\n")
     const url = URL.createObjectURL(
       new Blob([report], { type: "text/plain;charset=utf-8" }),
@@ -1879,6 +1947,10 @@ function App() {
     skipSearchQuery.current = DEFAULT_LOCATION_QUERY
     setLocationQuery(DEFAULT_LOCATION_QUERY)
     setMessages([])
+    if (interview) {
+      setInterview(null)
+      api.resetInterview().catch(() => undefined)
+    }
     setShowDashboard(false)
     setFeedback("Nuevo expediente preparado")
   }
@@ -1904,10 +1976,70 @@ function App() {
       .catch(() => setFeedback("La escena no se pudo guardar en el servidor"))
   }
 
+  const errorText = (error: unknown) =>
+    error instanceof Error ? error.message : "No se pudo contactar al asistente"
+
+  const startInterview = async () => {
+    if (!setupModalidad || assistantLoading) return
+    const vehiculos: Record<string, string> = { V1: setupV1.trim() || "vehículo 1" }
+    if (setupV2.trim()) vehiculos.V2 = setupV2.trim()
+    setAssistantLoading(true)
+    try {
+      const state = await api.startInterview(setupModalidad, vehiculos)
+      setInterview(state)
+      setMessages(state.transcript)
+      setFeedback("Entrevista iniciada")
+    } catch (error: unknown) {
+      setFeedback(errorText(error))
+    } finally {
+      setAssistantLoading(false)
+    }
+  }
+
+  const resetInterview = async () => {
+    setAssistantOptionsOpen(false)
+    try {
+      await api.resetInterview()
+      setInterview(null)
+      setMessages([])
+      setFeedback("Entrevista reiniciada")
+    } catch (error: unknown) {
+      setFeedback(errorText(error))
+    }
+  }
+
   const sendMessage = async () => {
     if (!chatText.trim() || assistantLoading) return
+    if (interview?.done) {
+      setFeedback("La entrevista ya está completa")
+      return
+    }
     const message = chatText.trim()
     setChatText("")
+
+    if (interview) {
+      // The model asks the next question and extracts the value from this answer.
+      setMessages((current) => [
+        ...current,
+        { role: "user", text: message },
+        { role: "assistant", text: "" },
+      ])
+      setAssistantLoading(true)
+      try {
+        const state = await api.answerInterview(message)
+        setInterview(state)
+        setMessages(state.transcript)
+        if (state.aviso) setFeedback(state.aviso)
+      } catch (error: unknown) {
+        setMessages((current) => current.slice(0, -2))
+        setChatText(message) // devolver el texto para poder reintentar
+        setFeedback(errorText(error))
+      } finally {
+        setAssistantLoading(false)
+      }
+      return
+    }
+
     setMessages((current) => [
       ...current,
       { role: "user", text: message },
@@ -2494,15 +2626,19 @@ function App() {
             </Button>
             {assistantOptionsOpen && (
               <div className="assistant-options">
-                <Button
-                  onClick={() => {
-                    setMessages([])
-                    setAssistantOptionsOpen(false)
-                    setFeedback("Conversación limpiada")
-                  }}
-                >
-                  Limpiar conversación
-                </Button>
+                {interview ? (
+                  <Button onClick={resetInterview}>Reiniciar entrevista</Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      setMessages([])
+                      setAssistantOptionsOpen(false)
+                      setFeedback("Conversación limpiada")
+                    }}
+                  >
+                    Limpiar conversación
+                  </Button>
+                )}
                 <Button
                   onClick={() => {
                     setInspectorOpen(true)
@@ -2519,10 +2655,10 @@ function App() {
           <div className="case-progress">
             <div className="progress-copy">
               <span>PROGRESO DEL EXPEDIENTE</span>
-              <b>62%</b>
+              <b>{progressPercent}%</b>
             </div>
             <div className="progress-track">
-              <span />
+              <span style={{ width: `${progressPercent}%` }} />
             </div>
             <div className="steps">
               {[
@@ -2533,10 +2669,12 @@ function App() {
                 "Informe",
               ].map((step, index) => (
                 <div
-                  className={index < 3 ? "done" : index === 3 ? "current" : ""}
+                  className={
+                    index < stepsDone ? "done" : index === stepsDone ? "current" : ""
+                  }
                   key={step}
                 >
-                  <span>{index < 3 ? "✓" : index + 1}</span>
+                  <span>{index < stepsDone ? "✓" : index + 1}</span>
                   <small>{step}</small>
                 </div>
               ))}
@@ -2549,6 +2687,60 @@ function App() {
               <b>DINÁMICA DEL SINIESTRO</b>
               <span />
             </div>
+            {!interview && chatbot?.available && (
+              <div className="interview-setup">
+                <b>Iniciar entrevista pericial</b>
+                <p>
+                  Elige la modalidad y describe los vehículos (marca, tipo,
+                  modelo y color).
+                </p>
+                <label>
+                  <span>Modalidad</span>
+                  <select
+                    onChange={(event) => setSetupModalidad(event.target.value)}
+                    value={setupModalidad}
+                  >
+                    <option value="">Selecciona...</option>
+                    {Object.entries(chatbot.modalidades).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label.split(" (")[0]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Vehículo V1</span>
+                  <input
+                    onChange={(event) => setSetupV1(event.target.value)}
+                    placeholder="Ej. Nissan Versa sedán gris"
+                    value={setupV1}
+                  />
+                </label>
+                <label>
+                  <span>Vehículo V2 (opcional)</span>
+                  <input
+                    onChange={(event) => setSetupV2(event.target.value)}
+                    placeholder="Ej. VW Jetta sedán negro"
+                    value={setupV2}
+                  />
+                </label>
+                <Button
+                  className="primary-button"
+                  disabled={!setupModalidad || assistantLoading}
+                  onClick={startInterview}
+                >
+                  {assistantLoading ? "Preparando..." : "Iniciar entrevista"}
+                </Button>
+              </div>
+            )}
+            {chatbot && !chatbot.available && (
+              <p className="chatbot-hint">
+                Chatbot local no disponible. Se usa el asistente simulado.
+                {chatbot.hint ? ` ${chatbot.hint}` : ""}
+              </p>
+            )}
+            {!interview && chatbot?.available !== true && (
+              <>
             <div className="assistant-message">
               <div className="message-avatar">
                 <Icon name="sparkle" size={15} />
@@ -2573,6 +2765,8 @@ function App() {
                 No se pudo determinar
               </Button>
             </div>
+              </>
+            )}
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div className="user-message" key={index}>

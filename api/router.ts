@@ -45,6 +45,40 @@ const pathParts = (request: VercelRequest) => {
   return rawPath.split("/").filter(Boolean).map(safeDecode);
 };
 
+// Servicio local del asistente pericial (chatbot-service/server.py, que usa Ollama).
+const CHATBOT_URL = (process.env.CHATBOT_URL || "http://127.0.0.1:8787").replace(/\/$/, "");
+const CHATBOT_TIMEOUT_MS = 300_000; // la primera respuesta carga el modelo en memoria
+
+const forwardToChatbot = async (
+  response: VercelResponse,
+  upstreamPath: string,
+  body?: JsonRecord,
+) => {
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${CHATBOT_URL}${upstreamPath}`, {
+      method: body ? "POST" : "GET",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(CHATBOT_TIMEOUT_MS),
+    });
+  } catch {
+    sendJson(response, 503, {
+      error: "El servicio local del chatbot no está activo.",
+      hint: "Ejecuta en otra terminal: python chatbot-service/server.py",
+    });
+    return;
+  }
+  const text = await upstream.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = { error: text.slice(0, 200) || "Respuesta inválida del chatbot" };
+  }
+  sendJson(response, upstream.status, payload);
+};
+
 const writeAssistantStream = (response: VercelResponse, answer: string) => {
   response.statusCode = 200;
   response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -61,7 +95,7 @@ const writeAssistantStream = (response: VercelResponse, answer: string) => {
   response.end();
 };
 
-export default function handler(request: VercelRequest, response: VercelResponse) {
+export default async function handler(request: VercelRequest, response: VercelResponse) {
   // "*" cannot be combined with Access-Control-Allow-Credentials: browsers reject that pair.
   // The API uses no cookies, so credentials are not allowed.
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -126,6 +160,24 @@ export default function handler(request: VercelRequest, response: VercelResponse
       return;
     }
 
+    // --- Entrevista pericial (modelo de Ollama, vía chatbot-service) ---
+    if (resource === "ai" && resourceId === "status" && method === "GET") {
+      await forwardToChatbot(response, "/health");
+      return;
+    }
+
+    if (resource === "ai" && resourceId === "interview") {
+      if (method === "GET" && subresource) {
+        await forwardToChatbot(response, `/interview/${encodeURIComponent(subresource)}`);
+        return;
+      }
+      if (method === "POST" && ["start", "answer", "reset"].includes(subresource ?? "")) {
+        await forwardToChatbot(response, `/interview/${subresource}`, requestBody(request));
+        return;
+      }
+    }
+
+    // Respuesta simulada: se usa cuando el servicio del chatbot no está disponible.
     if (resource === "ai" && resourceId === "chat" && method === "POST") {
       const body = requestBody(request);
       const message = requiredString(body.message, "message");
