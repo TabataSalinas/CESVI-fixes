@@ -2637,3 +2637,62 @@ kbd {
     display: none;
   }
 }
+
+/* ========== Entrevista pericial (chatbot local con Ollama) ========== */
+.interview-setup {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.interview-setup b {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.interview-setup p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.interview-setup label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.interview-setup select,
+.interview-setup input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.interview-setup select:focus,
+.interview-setup input:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-line);
+}
+
+.chatbot-hint {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
