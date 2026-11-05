@@ -42,11 +42,12 @@ export function getCase(caseId: string): CaseContext {
   return created;
 }
 
+// `scenes` must already be in the desired order; `order` is renumbered from the array index.
 export function updateScenes(caseId: string, scenes: Scene[]) {
   const record = getCase(caseId);
-  record.scenes = scenes
-    .map((scene, order) => ({ ...scene, order, updatedAt: now() }))
-    .sort((a, b) => a.order - b.order);
+  record.scenes = scenes.map((scene, order) =>
+    scene.order === order ? scene : { ...scene, order, updatedAt: now() },
+  );
 }
 
 export function createScene(caseId: string, name: string, order: number): Scene {
@@ -59,8 +60,23 @@ export function createScene(caseId: string, name: string, order: number): Scene 
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  updateScenes(caseId, [...record.scenes, scene]);
-  return scene;
+  // Insert at the requested position instead of always appending.
+  const index = Math.min(Math.max(0, Math.trunc(order)), record.scenes.length);
+  const scenes = [...record.scenes];
+  scenes.splice(index, 0, scene);
+  updateScenes(caseId, scenes);
+  return getCase(caseId).scenes[index];
+}
+
+export function renameScene(caseId: string, sceneId: string, name: string): Scene | undefined {
+  const record = getCase(caseId);
+  updateScenes(
+    caseId,
+    record.scenes.map((scene) =>
+      scene.id === sceneId ? { ...scene, name, updatedAt: now() } : scene,
+    ),
+  );
+  return findScene(caseId, sceneId);
 }
 
 export function findScene(caseId: string, sceneId: string): Scene | undefined {

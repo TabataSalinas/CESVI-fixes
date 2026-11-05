@@ -24,6 +24,7 @@ react(),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
+      localApiRoutes(),
     ],
     resolve: {
       alias: {
@@ -382,6 +383,65 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
           res.end(await server.transformIndexHtml(url, HTML_BOOTSTRAP))
         } catch (err) {
           next(err as Error)
+        }
+      })
+    },
+  }
+}
+
+/**
+ * `vite dev` does not execute the Vercel functions in /api, so every call from
+ * src/lib/api.ts returned 404 locally. This dev-only middleware loads
+ * api/router.ts through Vite's SSR loader and adapts Node's req/res to the
+ * subset of VercelRequest/VercelResponse that the router uses
+ * (query, body, status(), json()). Production keeps using Vercel functions.
+ */
+function localApiRoutes(): Plugin {
+  return {
+    name: 'cesvi-local-api',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost')
+        if (!url.pathname.startsWith('/api/')) return next()
+
+        try {
+          const chunks: Buffer[] = []
+          for await (const chunk of req) chunks.push(Buffer.from(chunk))
+          const raw = Buffer.concat(chunks).toString('utf8')
+          let body: unknown = raw || undefined
+          if (raw && String(req.headers['content-type'] ?? '').includes('application/json')) {
+            try {
+              body = JSON.parse(raw)
+            } catch {
+              body = raw
+            }
+          }
+
+          const query: Record<string, string> = Object.fromEntries(url.searchParams)
+          query.path = url.pathname.slice('/api/'.length)
+
+          const vercelRequest = Object.assign(req, { query, body, cookies: {} })
+          const vercelResponse = Object.assign(res, {
+            status(code: number) {
+              res.statusCode = code
+              return vercelResponse
+            },
+            json(payload: unknown) {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify(payload))
+              return vercelResponse
+            },
+            send(payload: unknown) {
+              res.end(typeof payload === 'string' ? payload : JSON.stringify(payload))
+              return vercelResponse
+            },
+          })
+
+          const routerModule = await server.ssrLoadModule('/api/router.ts')
+          await routerModule.default(vercelRequest, vercelResponse)
+        } catch (error) {
+          next(error as Error)
         }
       })
     },

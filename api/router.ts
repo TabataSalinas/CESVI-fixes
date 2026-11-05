@@ -3,6 +3,7 @@ import {
   createScene,
   findSceneAcrossCases,
   getCase,
+  renameScene,
   updateScenes,
 } from "./_store";
 
@@ -33,7 +34,15 @@ const pathParts = (request: VercelRequest) => {
   const rawPath = Array.isArray(request.query.path)
     ? request.query.path.join("/")
     : String(request.query.path ?? "");
-  return rawPath.split("/").filter(Boolean).map(decodeURIComponent);
+  // A malformed escape such as "%E0" would make decodeURIComponent throw outside the try/catch.
+  const safeDecode = (part: string) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return part;
+    }
+  };
+  return rawPath.split("/").filter(Boolean).map(safeDecode);
 };
 
 const writeAssistantStream = (response: VercelResponse, answer: string) => {
@@ -53,8 +62,9 @@ const writeAssistantStream = (response: VercelResponse, answer: string) => {
 };
 
 export default function handler(request: VercelRequest, response: VercelResponse) {
+  // "*" cannot be combined with Access-Control-Allow-Credentials: browsers reject that pair.
+  // The API uses no cookies, so credentials are not allowed.
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Credentials", "true");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
 
@@ -96,10 +106,8 @@ export default function handler(request: VercelRequest, response: VercelResponse
         sendJson(response, 404, { error: "Scene not found" });
         return;
       }
-      match.scene.name = requiredString(body.name, "name");
-      const record = getCase(match.caseId);
-      updateScenes(match.caseId, record.scenes);
-      sendJson(response, 200, match.scene);
+      const name = requiredString(body.name, "name");
+      sendJson(response, 200, renameScene(match.caseId, resourceId, name));
       return;
     }
 

@@ -17,6 +17,7 @@ type LocationSuggestion = {
 }
 
 const DEFAULT_MAP_CENTER: [number, number] = [19.4326, -99.1332]
+const DEFAULT_LOCATION_QUERY = "Av. Paseo de la Reforma 222"
 const DEFAULT_VEHICLE_POSITIONS = {
   V1: { lat: 19.43295, lng: -99.13355, rotation: 38 },
   V2: { lat: 19.43235, lng: -99.13285, rotation: -61 },
@@ -227,9 +228,12 @@ function GeoMapOverlay({
 
     window.addEventListener("pointermove", handlePointerMove)
     window.addEventListener("pointerup", handlePointerUp)
+    // Touch gestures can end with pointercancel instead of pointerup.
+    window.addEventListener("pointercancel", handlePointerUp)
     return () => {
       window.removeEventListener("pointermove", handlePointerMove)
       window.removeEventListener("pointerup", handlePointerUp)
+      window.removeEventListener("pointercancel", handlePointerUp)
     }
   }, [map, onMoveDropped, onMoveEvidence, onMoveImpact, onMoveVehicle, onRotateDropped, onRotateVehicle, onScaleDropped, onScaleVehicle])
 
@@ -241,7 +245,6 @@ function GeoMapOverlay({
   ) => {
     event.preventDefault()
     event.stopPropagation()
-    map.dragging.disable()
 
     const rect = map.getContainer().getBoundingClientRect()
     const pointerX = event.clientX - rect.left
@@ -272,6 +275,9 @@ function GeoMapOverlay({
       centerLatLng = { lat: ev.lat, lng: ev.lng }
     }
 
+    // Disable map panning only once we know the drag target exists; returning
+    // early after disabling it used to leave the map stuck without panning.
+    map.dragging.disable()
     const centerPoint = map.latLngToContainerPoint(centerLatLng)
     const initialDistance = Math.max(5, Math.hypot(pointerX - centerPoint.x, pointerY - centerPoint.y))
 
@@ -850,7 +856,22 @@ function VehicleSprite({
   )
 }
 
+// Catalog labels whose keywords don't match the heuristics below
+// (e.g. "camiones" does not contain "camión", motorcycle styles like "Naked").
+const VEHICLE_VARIANT_BY_LABEL: Record<string, VehicleVariant> = {
+  "Camiones rígidos": "truck",
+  "Trenes de carretera": "truck",
+  Turismo: "motorcycle",
+  Sport: "motorcycle",
+  Naked: "motorcycle",
+  Custom: "motorcycle",
+  Trail: "motorcycle",
+  Supermotard: "motorcycle",
+}
+
 function getVehicleVariant(label: string): VehicleVariant {
+  const mapped = VEHICLE_VARIANT_BY_LABEL[label]
+  if (mapped) return mapped
   const value = label.toLowerCase()
   if (value.includes("biciclet")) return "bicycle"
   if (
@@ -1221,6 +1242,8 @@ const catalogMenus: Record<MenuKey, {
 const frameNames = ["Inicio", "Aproximación", "Impacto", "Posición final"]
 const MAX_FRAMES = 30
 
+type ChatMessage = { role: "user" | "assistant"; text: string }
+
 type DroppedItem = {
   id: string
   kind: "animal" | "human" | "natural" | "object" | "static-vehicle" | "vehicle"
@@ -1513,7 +1536,7 @@ function App() {
   const [playing, setPlaying] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [chatText, setChatText] = useState("")
-  const [messages, setMessages] = useState<string[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentZoom, setCurrentZoom] = useState(19)
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null)
   const [droppedItems, setDroppedItems] = useState<DroppedItem[]>([])
@@ -1531,24 +1554,31 @@ function App() {
   })
   const [impactPosition, setImpactPosition] = useState(IMPACT_POSITION)
   const [evidencePositions, setEvidencePositions] = useState(EVIDENCE_POSITIONS)
-  const [locationQuery, setLocationQuery] = useState("Av. Paseo de la Reforma 222")
+  const [locationQuery, setLocationQuery] = useState(DEFAULT_LOCATION_QUERY)
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
   const [locationSearchLoading, setLocationSearchLoading] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_MAP_CENTER)
+  // Where the scenario (vehicles, impact, evidence) is anchored. It moves with the selected location.
+  const [scenarioCenter, setScenarioCenter] = useState<[number, number]>([
+    IMPACT_POSITION.lat,
+    IMPACT_POSITION.lng,
+  ])
   const [locationMenuOpen, setLocationMenuOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const locationQueryInitialized = useRef(false)
+  // Query value that must not trigger a search: the initial value and any selected suggestion.
+  // A boolean "first run" flag broke under StrictMode (effects run twice in dev) and the
+  // menu reopened right after picking a suggestion because that also changes the query.
+  const skipSearchQuery = useRef(DEFAULT_LOCATION_QUERY)
   const activeTools = ribbonGroups[ribbon]
+  // The UI hard-coded "EXP-0248" and ignored VITE_CASE_ID.
+  const caseId = caseContext?.id ?? api.caseId
   const mapViewMode = selectedFrame === 0 ? "location" : "scenario"
-  const mapViewCenter =
-    mapViewMode === "location" ? mapCenter : [IMPACT_POSITION.lat, IMPACT_POSITION.lng]
+  const mapViewCenter: [number, number] =
+    mapViewMode === "location" ? mapCenter : scenarioCenter
   const mapViewZoom = mapViewMode === "location" ? 15 : 19
 
   useEffect(() => {
-    if (!locationQueryInitialized.current) {
-      locationQueryInitialized.current = true
-      return
-    }
+    if (locationQuery === skipSearchQuery.current) return
     const query = locationQuery.trim()
     if (query.length < 3) {
       setLocationSuggestions([])
@@ -1617,6 +1647,8 @@ function App() {
               : "No se pudo cargar el expediente"
             : null,
         )
+        // dataError was never rendered, so API failures were silent.
+        if (failed) setFeedback("No se pudo cargar el expediente desde el servidor")
       })
       .finally(() => {
         if (active) setDataLoading(false)
@@ -1692,6 +1724,32 @@ function App() {
 
     return () => window.clearInterval(timer)
   }, [playing, frames.length])
+
+  const selectLocation = (suggestion: LocationSuggestion) => {
+    const lat = Number(suggestion.lat)
+    const lng = Number(suggestion.lon)
+    skipSearchQuery.current = suggestion.display_name
+    setLocationQuery(suggestion.display_name)
+    setLocationSuggestions([])
+    setLocationMenuOpen(false)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+    // Move the whole scenario to the new location, keeping relative positions.
+    // Before, only frame 0 used the new location and every other frame jumped back to CDMX.
+    const dLat = lat - scenarioCenter[0]
+    const dLng = lng - scenarioCenter[1]
+    const shift = <T extends GeoPosition>(position: T): T => ({
+      ...position,
+      lat: position.lat + dLat,
+      lng: position.lng + dLng,
+    })
+    setMapCenter([lat, lng])
+    setScenarioCenter([lat, lng])
+    setMapVehicles((current) => ({ V1: shift(current.V1), V2: shift(current.V2) }))
+    setImpactPosition((current) => shift(current))
+    setEvidencePositions((current) => current.map(shift))
+    setDroppedItems((current) => current.map(shift))
+  }
 
   const selectRibbon = (tab: string) => {
     if (!(tab in ribbonGroups)) {
@@ -1783,7 +1841,7 @@ function App() {
   const exportReport = () => {
     const report = [
       "CESVI · Reconstrucción vial",
-      "Expediente: EXP-0248",
+      `Expediente: ${caseId}`,
       `Escenas: ${frames.length}`,
       `Elementos colocados: ${droppedItems.length}`,
       ...droppedItems.map((item) => `- ${item.label} (${item.kind})`),
@@ -1793,9 +1851,12 @@ function App() {
     )
     const link = document.createElement("a")
     link.href = url
-    link.download = "EXP-0248-informe.txt"
+    link.download = `${caseId}-informe.txt`
+    // Firefox needs the link in the DOM, and revoking the URL synchronously can cancel the download.
+    document.body.appendChild(link)
     link.click()
-    URL.revokeObjectURL(url)
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     setFeedback("Informe exportado")
   }
 
@@ -1804,6 +1865,20 @@ function App() {
     setFrames(frameNames)
     setSelectedFrame(0)
     setSelectedDroppedId(null)
+    // Vehicles, impact, evidence, location and chat used to survive a "new case".
+    setLastRemovedItem(null)
+    setSelectedVehicleId("V1")
+    setMapVehicles({
+      V1: { ...DEFAULT_VEHICLE_POSITIONS.V1, scale: 1 },
+      V2: { ...DEFAULT_VEHICLE_POSITIONS.V2, scale: 1 },
+    })
+    setImpactPosition(IMPACT_POSITION)
+    setEvidencePositions(EVIDENCE_POSITIONS)
+    setMapCenter(DEFAULT_MAP_CENTER)
+    setScenarioCenter([IMPACT_POSITION.lat, IMPACT_POSITION.lng])
+    skipSearchQuery.current = DEFAULT_LOCATION_QUERY
+    setLocationQuery(DEFAULT_LOCATION_QUERY)
+    setMessages([])
     setShowDashboard(false)
     setFeedback("Nuevo expediente preparado")
   }
@@ -1818,15 +1893,26 @@ function App() {
           return match ? Number(match[1]) : 0
         }),
       ) + 1
-    setFrames((current) => [...current, `Escena ${nextSceneNumber}`])
-    setSelectedFrame(frames.length)
+    const name = `Escena ${nextSceneNumber}`
+    const order = frames.length
+    setFrames((current) => [...current, name])
+    setSelectedFrame(order)
+    // New scenes were only kept in local state and were lost on reload.
+    api
+      .createScene(name, order)
+      .then((created) => setSceneRecords((current) => [...current, created]))
+      .catch(() => setFeedback("La escena no se pudo guardar en el servidor"))
   }
 
   const sendMessage = async () => {
     if (!chatText.trim() || assistantLoading) return
     const message = chatText.trim()
     setChatText("")
-    setMessages((current) => [...current, message, ""])
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: message },
+      { role: "assistant", text: "" },
+    ])
     setAssistantLoading(true)
     try {
       await api.sendAssistantMessage(
@@ -1842,14 +1928,18 @@ function App() {
         (token) => {
           setMessages((current) => {
             const next = [...current]
-            next[next.length - 1] = `${next[next.length - 1]}${token}`
+            const last = next[next.length - 1]
+            next[next.length - 1] = { ...last, text: last.text + token }
             return next
           })
         },
       )
     } catch (error: unknown) {
-      setMessages((current) => current.slice(0, -1))
+      setMessages((current) =>
+        current.at(-1)?.role === "assistant" ? current.slice(0, -1) : current,
+      )
       setDataError(error instanceof Error ? error.message : "No se pudo contactar al asistente")
+      setFeedback("No se pudo contactar al asistente")
     } finally {
       setAssistantLoading(false)
     }
@@ -1871,7 +1961,7 @@ function App() {
           </div>
           <div className="document-name">
             <b>CESVI · Reconstrucción vial</b>
-            <span>EXP-0248 · Guardado</span>
+            <span>{caseId} · Guardado</span>
           </div>
         </div>
         <nav className="ribbon-tabs" aria-label="Herramientas principales">
@@ -1954,10 +2044,7 @@ function App() {
                 if (event.key === "Enter") {
                   const firstSuggestion = locationSuggestions[0]
                   if (firstSuggestion) {
-                    setLocationQuery(firstSuggestion.display_name)
-                    setMapCenter([Number(firstSuggestion.lat), Number(firstSuggestion.lon)])
-                    setLocationSuggestions([])
-                    setLocationMenuOpen(false)
+                    selectLocation(firstSuggestion)
                   } else {
                     setFeedback(`Ubicación buscada: ${event.currentTarget.value}`)
                   }
@@ -1977,12 +2064,7 @@ function App() {
                   className="location-suggestion"
                   key={`${suggestion.lat}-${suggestion.lon}-${suggestion.display_name}`}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    setLocationQuery(suggestion.display_name)
-                    setMapCenter([Number(suggestion.lat), Number(suggestion.lon)])
-                    setLocationSuggestions([])
-                    setLocationMenuOpen(false)
-                  }}
+                  onClick={() => selectLocation(suggestion)}
                   role="option"
                   type="button"
                 >
@@ -2263,7 +2345,7 @@ function App() {
                 <Icon name="minus" size={16} />
               </Button>
             </div>
-            <div className="north-indicator" onClick={() => mapInstance?.setView(mapCenter, currentZoom)} title="Norte geográfico">
+            <div className="north-indicator" onClick={() => mapInstance?.setView(mapViewCenter, currentZoom)} title="Norte geográfico">
               <span>N</span>
               <i />
             </div>
@@ -2491,14 +2573,26 @@ function App() {
                 No se pudo determinar
               </Button>
             </div>
-            {messages.map((message, index) => (
-              <div className="user-message" key={`${message}-${index}`}>
-                <div className="message-bubble">
-                  <p>{message}</p>
-                  <span>Ahora</span>
+            {messages.map((message, index) =>
+              message.role === "user" ? (
+                <div className="user-message" key={index}>
+                  <div className="message-bubble">
+                    <p>{message.text}</p>
+                    <span>Ahora</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div className="assistant-message" key={index}>
+                  <div className="message-avatar">
+                    <Icon name="sparkle" size={15} />
+                  </div>
+                  <div className="message-bubble">
+                    <p>{message.text || "Escribiendo..."}</p>
+                    <span>Ahora</span>
+                  </div>
+                </div>
+              ),
+            )}
             <div className="context-card">
               <div className="context-head">
                 <span>
@@ -2570,7 +2664,7 @@ function App() {
               </div>
             </div>
             <span className="privacy-note">
-              La información se guarda en el expediente EXP-0248
+              La información se guarda en el expediente {caseId}
             </span>
           </div>
         </aside>
