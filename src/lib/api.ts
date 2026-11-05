@@ -18,14 +18,14 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/
 const CASE_ID = import.meta.env.VITE_CASE_ID || "EXP-0248";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Spread `init` first so its `headers` cannot overwrite the merged headers below.
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: "include",
+    ...init,
     headers: {
       Accept: "application/json",
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
-    ...init,
   });
 
   if (!response.ok) {
@@ -72,7 +72,6 @@ export const api = {
   ) => {
     const response = await fetch(`${API_BASE_URL}/ai/chat`, {
       method: "POST",
-      credentials: "include",
       headers: {
         Accept: "text/event-stream, application/json",
         "Content-Type": "application/json",

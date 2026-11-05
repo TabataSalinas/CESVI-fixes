@@ -1,4 +1,6 @@
 {
+  "title": "CESVI · Reconstrucción vial",
+  "language": "es",
   "description": "This interactive web application allows users to recreate accident scenarios using a customizable map, facilitating detailed analysis and reporting for accident investigators.",
   "robots": {
     "index": false
