@@ -96,6 +96,11 @@ Junta la geometría del mapa y los datos de la entrevista:
 | `objetos[]` | Objetos del catálogo colocados en el mapa |
 | `entrevista.respuestas` | Todas las respuestas tal cual |
 | `datos_faltantes[]` | Temas sin información (`sin_informacion`) o no preguntados (`no_preguntado`) |
+| `metadata` (ampliada) | Versión, fecha, unidades, `sistema_referencia` de Unity (origen en el punto de impacto) y `fps` |
+| `escena` (ampliada) | `nombre`, `municipio`, `estado`, `pais`, `origen_geografico` y `condiciones` (clima, superficie, `coeficiente_friccion_mu` estimado) |
+| `vehiculos[]` (ampliado) | `transform_inicial`, `dimensiones_m`, `masa_kg` (estimadas), `velocidad_inicial_kmh` y `keyframes` (aproximación, impacto, post-colisión, detención) |
+| `elementos_estaticos[]` | Evidencias y objetos del mapa con `transform` y `collider`, en metros respecto al impacto |
+| `registro_impactos[]` | Tiempo, tipo de colisión, punto de contacto y zona afectada por vehículo |
 
 En Unity: `position = new Vector3(x, 0, y)` y `rotation = Quaternion.Euler(0, rumbo_deg, 0)`.
 
