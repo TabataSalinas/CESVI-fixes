@@ -21,6 +21,7 @@ import { api, type CaseContext, type Scene } from "./lib/api"
 import { DEFAULT_ANCHOR, loadSavedCase } from "./lib/migration.ts"
 import { toOffsetM, type GeoPosition } from "./lib/geo.ts"
 import { useWizard } from "./hooks/useWizard"
+import { useInterview } from "./hooks/useInterview"
 import WizardController from "./components/wizard/WizardController"
 import CoachMarks from "./components/wizard/CoachMarks"
 import { indexToStep, STEP_LABELS, type WizardStep } from "./lib/wizardMachine"
@@ -70,6 +71,8 @@ export default function App() {
 
   // Flujo guiado por pasos (Wizard pericial)
   const wizard = useWizard(anchor, locationQuery)
+  // Entrevista pericial con el modelo de Ollama (chatbot-service/server.py)
+  const interview = useInterview()
   const isInicio = wizard.wizardState.step === "inicio"
   const [isPlacingOnMap, setIsPlacingOnMap] = useState(false)
   const [isDrawingTrajectory, setIsDrawingTrajectory] = useState(false)
@@ -241,6 +244,15 @@ export default function App() {
       evidencePositions: scenario.evidencePositions,
       droppedItems: scenario.droppedItems,
       wizardState: wizard.wizardState,
+      interview: interview.interview
+        ? {
+            modalidad: interview.status?.modalidades[interview.interview.modalidad] ?? interview.interview.modalidad,
+            vehiculos: interview.interview.vehiculos,
+            estado: interview.interview.estado,
+            temas: interview.interview.temas,
+            progress: interview.interview.progress,
+          }
+        : undefined,
     })
     setFeedback("Informe pericial EXP-0248 (PDF) descargado con éxito")
   }
@@ -573,6 +585,7 @@ export default function App() {
         <ErrorBoundary fallbackTitle="Error en el asistente pericial">
           <AssistantPanel
             context={assistantContext}
+            interview={interview}
             wizard={wizard}
             wizardContent={
               <WizardController

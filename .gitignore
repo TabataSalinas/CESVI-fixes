@@ -36,3 +36,9 @@ uploads/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Asistente local con Ollama (chatbot-service)
+# El modelo pesa varios GB: no se sube a Git.
+*.gguf
+chatbot-service/sessions.json
+chatbot-service/*.tmp

@@ -29,6 +29,22 @@ export type CaseDataForPdf = {
   evidencePositions?: Array<{ label: string; lat: number; lng: number }>
   droppedItems?: Array<{ label: string; kind?: string; lat?: number; lng?: number }>
   wizardState?: { isComplete?: boolean }
+  /** Respuestas de la entrevista pericial con el modelo de Ollama. */
+  interview?: {
+    modalidad: string
+    vehiculos: Record<string, string>
+    estado: Record<string, unknown>
+    temas: Record<string, string>
+    progress: number
+  }
+}
+
+const INTERVIEW_SKIPPED = "__saltado__"
+
+function interviewValue(value: unknown): string {
+  if (value === INTERVIEW_SKIPPED) return "Omitido por el perito"
+  if (value === null || value === undefined || value === "") return "No registrado"
+  return typeof value === "string" ? value : JSON.stringify(value)
 }
 
 function parseLocationParts(query = ""): { municipio: string; estado: string } {
@@ -578,6 +594,61 @@ export function buildReportPdf(caso: CaseDataForPdf): jsPDF {
   doc.text("CESVI México · Certificación de Peritaje Vial", pageWidth / 2, signY + 7.5, {
     align: "center",
   })
+
+  // Bloque 7: Entrevista pericial (asistente IA local con Ollama)
+  if (caso.interview) {
+    const iv = caso.interview
+    doc.addPage()
+    let y = 20
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9.5)
+    doc.setTextColor(210, 38, 48)
+    doc.text("7. ENTREVISTA PERICIAL (ASISTENTE IA)", margin, y)
+    y += 5
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(7.5)
+    doc.setTextColor(30, 41, 59)
+    const vehiculos = Object.entries(iv.vehiculos)
+      .map(([id, desc]) => `${id}: ${desc}`)
+      .join(" · ")
+    doc.text(
+      `Modalidad: ${iv.modalidad}   ·   Avance: ${iv.progress}%   ·   Vehículos: ${vehiculos || "No registrado"}`,
+      margin,
+      y,
+      { maxWidth: contentWidth },
+    )
+    y += 6
+    const rows = Object.entries(iv.estado).map(([id, value]) => [
+      iv.temas[id] ?? id,
+      interviewValue(value),
+    ])
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [["Tema", "Respuesta registrada"]],
+      body: rows.length > 0 ? rows : [["Sin respuestas", "No registrado"]],
+      theme: "striped",
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: "bold",
+        cellPadding: 2,
+      },
+      styles: { fontSize: 7, cellPadding: 2, textColor: [30, 41, 59], overflow: "linebreak" },
+      columnStyles: { 0: { cellWidth: contentWidth * 0.42 } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    })
+    const afterTable = (doc as any).lastAutoTable.finalY + 5
+    doc.setFontSize(6.5)
+    doc.setTextColor(100, 116, 139)
+    doc.text(
+      "Preguntas redactadas y respuestas estructuradas por un modelo de lenguaje local a partir de lo declarado por el perito. Verificar antes de dictaminar.",
+      margin,
+      Math.min(afterTable, pageHeight - 18),
+      { maxWidth: contentWidth },
+    )
+  }
 
   // ==========================================
   // PIE DE PÁGINA EN CADA PÁGINA

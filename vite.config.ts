@@ -34,6 +34,13 @@ react(),
       host: process.env.FIGMA_DEV_SERVER_HOST || '0.0.0.0',
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
+      // En desarrollo, /api lo atiende chatbot-service/server.py (entrevista con Ollama).
+      proxy: {
+        '/api': {
+          target: process.env.CESVI_API_URL || 'http://127.0.0.1:8787',
+          changeOrigin: true,
+        },
+      },
       watch: {
         ignored: [
           '**/.figma/**',

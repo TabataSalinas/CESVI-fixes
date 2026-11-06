@@ -1,5 +1,7 @@
 # CESVI — Sistema de Reconstrucción Pericial y Simulación Vial
 
+> **Entrevista con el modelo de Ollama y link para compartir:** ver [`chatbot-service/README.md`](chatbot-service/README.md). Inicio rápido en Windows: doble clic en `iniciar-cesvi.bat`.
+
 Plataforma integral para el peritaje y reconstrucción de hechos de tránsito terrestre. Combina un frontend modular interactivo con captura cartográfica geo-referenciada, un motor de entrevista pericial determinista y un servicio de extracción estructurada asistida por Inteligencia Artificial (Groq / Google Gemini).
 
 ---

@@ -3169,3 +3169,174 @@ kbd {
     display: none !important;
   }
 }
+
+/* ========== Entrevista pericial con Ollama (chatbot-service) ========== */
+/* Sin pestañas el envoltorio no existe para la cuadrícula original del panel. */
+.assistant-body-passthrough {
+  display: contents;
+}
+
+.assistant-pane.has-tabs {
+  grid-template-rows: 57px auto minmax(0, 1fr);
+}
+
+.assistant-body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.assistant-body > .conversation {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.assistant-body > .chat-composer,
+.assistant-body > .case-progress {
+  flex: 0 0 auto;
+}
+
+.assistant-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-1);
+}
+
+.assistant-tabs button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assistant-tabs button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.assistant-tabs small {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 10px;
+}
+
+.interview-setup {
+  display: grid;
+  gap: 10px;
+  margin: 14px 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  overflow-y: auto;
+}
+
+.interview-setup b {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.interview-setup p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.interview-setup label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.interview-setup select,
+.interview-setup input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.interview-setup select:focus,
+.interview-setup input:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-line);
+}
+
+.interview-progress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.interview-progress b {
+  color: var(--accent);
+}
+
+.interview-progress-track {
+  grid-column: 1 / -1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-4);
+}
+
+.interview-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.interview-note {
+  display: block;
+  margin: 6px 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.conversation .interview-note {
+  margin: 6px 0;
+}
+
+.interview-done {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+}
+
+.interview-error {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(217, 68, 79, 0.08);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
