@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import ChatMessage from "./ChatMessage"
 import ChatInput from "./ChatInput"
+import QuickReplies from "./QuickReplies"
 import Button from "../ui/Button"
 import type { InterviewController } from "../../hooks/useInterview"
 
 type MapVehicleLike = { type?: string; model?: string }
+
+/** Respuesta rápida: el servidor la reconoce como "sin información" y pasa al siguiente tema. */
+const NO_INFO_REPLY = "No tengo esta información"
 
 const describeVehicle = (v?: MapVehicleLike) =>
   v ? [v.type, v.model].filter(Boolean).join(" ").trim() : ""
@@ -13,9 +17,12 @@ const describeVehicle = (v?: MapVehicleLike) =>
 export default function InterviewChat({
   controller,
   vehicles,
+  onExportUnity,
 }: {
   controller: InterviewController
   vehicles?: Record<string, MapVehicleLike>
+  /** Descarga el JSON de simulación para Unity (se ofrece al terminar la entrevista). */
+  onExportUnity?: () => void
 }) {
   const { status, interview, messages, busy, error, setError, refreshStatus, start, answer } =
     controller
@@ -136,15 +143,36 @@ export default function InterviewChat({
             {error}
           </p>
         )}
-        {!interview.done && (
-          <small className="interview-note">Escribe «saltar» para omitir un tema.</small>
+        {!interview.done && !busy && (
+          <>
+            <QuickReplies
+              disabled={busy}
+              onSelect={(option) => void answer(option)}
+              options={[NO_INFO_REPLY]}
+            />
+            <small className="interview-note">
+              Si no tienes el dato, pulsa «{NO_INFO_REPLY}» o escribe «no sé»: el asistente pasa
+              a la siguiente pregunta.
+            </small>
+          </>
         )}
         <div ref={endRef} />
       </div>
       {interview.done ? (
-        <p className="interview-note interview-done">
-          Entrevista completa. Las respuestas se incluyen en el informe PDF.
-        </p>
+        <div className="interview-done">
+          <p>
+            Entrevista completa
+            {interview.sinInformacion && interview.sinInformacion.length > 0
+              ? ` · ${interview.sinInformacion.length} tema(s) sin información`
+              : ""}
+            . Las respuestas se incluyen en el informe PDF.
+          </p>
+          {onExportUnity && (
+            <Button className="primary-button" onClick={onExportUnity}>
+              Descargar JSON para Unity
+            </Button>
+          )}
+        </div>
       ) : (
         <ChatInput disabled={busy} onChange={setText} onSend={() => void send()} value={text} />
       )}

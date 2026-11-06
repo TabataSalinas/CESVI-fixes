@@ -16,6 +16,8 @@ export type InterviewState = {
   transcript: InterviewTurn[]
   /** Descripción legible de cada tema, por id. */
   temas: Record<string, string>
+  /** Temas que el perito omitió o para los que no tenía información. */
+  sinInformacion?: string[]
   aviso?: string
 }
 

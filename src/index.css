@@ -3324,12 +3324,6 @@ kbd {
   margin: 6px 0;
 }
 
-.interview-done {
-  padding: 12px 16px;
-  border-top: 1px solid var(--line);
-  color: var(--text);
-}
-
 .interview-error {
   margin: 6px 0;
   padding: 8px 10px;
@@ -3339,4 +3333,19 @@ kbd {
   font-size: 12px;
   line-height: 1.4;
   cursor: pointer;
+}
+
+.interview-done {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+}
+
+.interview-done p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
 }

@@ -18,6 +18,8 @@ Uso:  python chatbot-service/server.py
 """
 import json
 import mimetypes
+import re
+import unicodedata
 import os
 import sys
 import threading
@@ -43,6 +45,38 @@ PORT = int(os.environ.get("CHATBOT_PORT", "8787"))
 DATA_FILE = Path(os.environ.get("CHATBOT_DATA", ROOT / "sessions.json"))
 DIST_DIR = Path(os.environ.get("CESVI_DIST", ROOT.parent / "dist")).resolve()
 MAX_BODY_BYTES = 64 * 1024  # el servicio queda expuesto por el túnel: limitar el tamaño de cada petición
+
+# Respuestas que significan "el perito no tiene esa información". Se comparan sin acentos ni
+# mayúsculas. Cuidado: "no se encontraron huellas" o "no hubo frenado" SÍ son hechos, por eso
+# "no se" solo cuenta si termina ahí ("no sé.", "no sé, ...").
+_NO_INFO = re.compile(
+    r"^\s*(?:"
+    r"saltar|omitir|siguiente|paso|ninguna?|nada|n/?a|ni idea|desconocido|"
+    r"no se(?: sabe| nada| tiene)?|no lo se|no sabria(?: decir)?|no sabemos|no sabe|"
+    r"no lo sabe|desconozco|lo desconozco|se desconoce|no tengo idea|"
+    r"no (?:tengo|tenemos|hay|existe|cuento con|se tiene|se cuenta con)(?: esa| ese| esta| este| mas| ninguna| ningun| la| el)? "
+    r"(?:informacion|info|dato|datos|registro|registros|detalle|detalles)|"
+    r"sin (?:informacion|info|dato|datos|registro|registros)|"
+    r"no (?:se )?(?:pudo|puede) (?:determinar|saber|establecer|precisar)|"
+    r"no se (?:determino|registro|reporto|especifico|menciono)|"
+    r"no (?:consta|recuerdo|recuerda|aplica|disponible|especificado|determinado|reportado)"
+    r")\s*(?:$|[,.;:!?]|\s+(?:porque|ya|pues|aun|todavia|al respecto|de eso|sobre eso)\b)",
+)
+
+
+def _fold(text):
+    """minúsculas y sin acentos: 'No sé' -> 'no se'."""
+    text = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in text if not unicodedata.combining(c))
+
+
+def is_no_info(respuesta):
+    folded = _fold(respuesta).strip()
+    # "saltar ..." / "omitir ..." siempre omiten el tema (como en chat_cli.py).
+    return folded.startswith(("saltar", "omitir")) or bool(_NO_INFO.match(folded))
+
+
+NO_INFO_ACK = "Entendido, lo registro como sin información y seguimos."
 
 # "otro" no es reconstruible por dinámica; chat_cli.py tampoco lo ofrece.
 MODALIDADES = {k: v for k, v in schema.MODALIDADES.items() if k != "otro"}
@@ -163,6 +197,8 @@ def _public(s, aviso=None):
         "done": s["done"], "transcript": s["transcript"],
         # Descripción legible de cada tema, para el informe PDF.
         "temas": {t["id"]: t["desc"] for t in topics},
+        # Temas que el perito omitió o para los que no tenía información.
+        "sinInformacion": [k for k, v in s["estado"].items() if v == schema.SALTADO],
     }
     if aviso:
         out["aviso"] = aviso
@@ -174,7 +210,14 @@ def _ask_next(s):
     pend = _pending(s)
     if not pend:
         s.update(done=True, tema=None, pregunta=None)
-        s["transcript"].append({"role": "assistant", "text": schema.FIN_TEXT})
+        faltan = sum(1 for v in s["estado"].values() if v == schema.SALTADO)
+        if faltan:
+            texto = (f"Terminamos la entrevista. Quedaron {faltan} tema(s) sin información; "
+                     "se marcan como datos faltantes en el JSON para Unity. "
+                     "Ya puedes descargarlo y generar la simulación.")
+        else:
+            texto = schema.FIN_TEXT
+        s["transcript"].append({"role": "assistant", "text": texto})
         return
     last = tuple(s["last"]) if s["last"] else None
     raw = ollama_chat(schema.SYSTEM_Q,
@@ -238,7 +281,10 @@ def answer_interview(body):
         by_id = {t["id"]: t for t in _topics(s)}
         tema, pregunta = s["tema"], s["pregunta"]
         aviso = None
-        if respuesta.lower().startswith("saltar"):
+        sin_info = is_no_info(respuesta)
+        if sin_info:
+            # El perito no tiene el dato: se marca como saltado (igual que en el entrenamiento)
+            # sin llamar al modelo, y se pasa al siguiente tema.
             valor = schema.SALTADO
         else:
             out = ollama_chat(schema.SYSTEM_E,
@@ -247,13 +293,18 @@ def answer_interview(body):
                               120)
             data = schema.parse_json_loose(out)
             if isinstance(data, dict) and tema in data:
-                valor = data[tema]
+                # norm_value (schema.py) convierte en None valores como "no especificado".
+                valor = schema.norm_value(tema, data[tema])
+                if valor is None:
+                    valor, sin_info = schema.SALTADO, True
             else:
                 valor = respuesta
                 aviso = "No pude estructurar la respuesta; se guardó el texto tal cual."
         s["estado"][tema] = valor
         s["last"] = [pregunta, respuesta]
         s["transcript"].append({"role": "user", "text": respuesta})
+        if sin_info:
+            s["transcript"].append({"role": "assistant", "text": NO_INFO_ACK})
         _ask_next(s)
         _sessions[case_id] = s
         _save()

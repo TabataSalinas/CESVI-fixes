@@ -42,7 +42,7 @@ export type CaseDataForPdf = {
 const INTERVIEW_SKIPPED = "__saltado__"
 
 function interviewValue(value: unknown): string {
-  if (value === INTERVIEW_SKIPPED) return "Omitido por el perito"
+  if (value === INTERVIEW_SKIPPED) return "Sin información (el perito no contaba con el dato)"
   if (value === null || value === undefined || value === "") return "No registrado"
   return typeof value === "string" ? value : JSON.stringify(value)
 }

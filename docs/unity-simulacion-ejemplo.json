@@ -1,0 +1,248 @@
+{
+  "formato": "cesvi.unity.simulacion",
+  "version": "3.0.0",
+  "metadata": {
+    "caseId": "EXP-0248",
+    "generado": "2026-11-06T16:55:31.673Z",
+    "entrevista_completa": true,
+    "progreso_entrevista": 100,
+    "modelo_ia": "cesvi",
+    "fuente_cartografica": "© OpenStreetMap contributors (https://www.openstreetmap.org/copyright)"
+  },
+  "sistema_coordenadas": {
+    "tipo": "ENU local (plano tangente al ancla)",
+    "origen": {
+      "lat": 19.4326,
+      "lng": -99.1332
+    },
+    "unidades": "metros",
+    "ejes": {
+      "x": "Este (+) / Oeste (-)",
+      "y": "Norte (+) / Sur (-)"
+    },
+    "rumbo": "grados 0-360; 0 = Norte, 90 = Este, sentido horario",
+    "unity": "position = new Vector3(x, 0, y); rotation = Quaternion.Euler(0, rumbo_deg, 0)"
+  },
+  "escena": {
+    "ubicacion": "Av. Reforma 222, CDMX",
+    "modalidad": {
+      "id": "alcance",
+      "descripcion": "Alcance"
+    },
+    "superficie": "Asfalto seco",
+    "iluminacion": null,
+    "distancia_previa_entre_vehiculos": null,
+    "senalizacion_preferencia": null,
+    "objeto_impactado": null,
+    "causa_perdida_control": null,
+    "maniobra_reversa": null,
+    "volcadura_vueltas": null
+  },
+  "vehiculos": [
+    {
+      "id": "V1",
+      "descripcion": "Nissan Versa gris",
+      "tipo": "car",
+      "modelo": "Nissan Versa 2021",
+      "escala": 1,
+      "en_mapa": true,
+      "participa_en_impacto": true,
+      "posicion_inicial": {
+        "x": -36.757,
+        "y": 38.962,
+        "rumbo_deg": 38
+      },
+      "trayectoria": [
+        {
+          "x": -40,
+          "y": 42
+        },
+        {
+          "x": -20,
+          "y": 20
+        }
+      ],
+      "posicion_final": {
+        "x": 16.123,
+        "y": 6.5,
+        "rumbo_deg": 340
+      },
+      "posicion_final_descripcion": "A 4 m del impacto",
+      "velocidad_kmh": 0,
+      "velocidad_ms": 0,
+      "velocidad_fuente": "entrevista",
+      "sentido_carril": null,
+      "maniobra_previa": null,
+      "zona_impacto": "Trasera",
+      "danos": null,
+      "bolsas_aire": null,
+      "declaracion_conductor": null
+    },
+    {
+      "id": "V2",
+      "descripcion": "VW Jetta negro",
+      "tipo": "car",
+      "modelo": null,
+      "escala": 1,
+      "en_mapa": true,
+      "participa_en_impacto": true,
+      "posicion_inicial": {
+        "x": 36.757,
+        "y": -27.83,
+        "rumbo_deg": 299
+      },
+      "trayectoria": [],
+      "posicion_final": null,
+      "posicion_final_descripcion": null,
+      "velocidad_kmh": 50,
+      "velocidad_ms": 13.89,
+      "velocidad_fuente": "entrevista",
+      "sentido_carril": null,
+      "maniobra_previa": "Sin frenar",
+      "zona_impacto": null,
+      "danos": null,
+      "bolsas_aire": null,
+      "declaracion_conductor": "No se encontraron huellas"
+    }
+  ],
+  "impacto": {
+    "posicion": {
+      "x": 12.602,
+      "y": 2.226
+    },
+    "tiempo": "00:03.38",
+    "vehiculos": [
+      "V1",
+      "V2"
+    ],
+    "secuencia_eventos": null,
+    "punto_en_via": null,
+    "angulo_deg": null,
+    "angulo_descripcion": "Entre 0 y 10 grados",
+    "altura_marca_objeto_cm": null
+  },
+  "evidencias": {
+    "marcadores": [
+      {
+        "label": "E1",
+        "x": 1,
+        "y": 2
+      }
+    ],
+    "descripcion_sitio": null,
+    "huellas_frenado_m": 12
+  },
+  "objetos": [
+    {
+      "id": "o1",
+      "etiqueta": "Poste",
+      "tipo": "object",
+      "x": 3,
+      "y": 4,
+      "rumbo_deg": 10,
+      "escala": 1
+    }
+  ],
+  "entrevista": {
+    "modalidad": "alcance",
+    "vehiculos": {
+      "V1": "Nissan Versa gris",
+      "V2": "VW Jetta negro"
+    },
+    "respuestas": {
+      "declaracion_V1": null,
+      "declaracion_V2": "No se encontraron huellas",
+      "superficie": "Asfalto seco",
+      "iluminacion": null,
+      "sentido_carril_V1": null,
+      "sentido_carril_V2": null,
+      "velocidad_V1_kmh": "0",
+      "velocidad_V2_kmh": 50,
+      "maniobra_previa_V1": null,
+      "maniobra_previa_V2": "Sin frenar",
+      "distancia_previa": null,
+      "secuencia_eventos": null,
+      "punto_impacto_via": null,
+      "evidencias_sitio": null,
+      "huellas_frenado_m": "12 m",
+      "airbags_V1": null,
+      "airbags_V2": null,
+      "danos_V1": null,
+      "danos_V2": null,
+      "posicion_final_V1": "A 4 m del impacto",
+      "posicion_final_V2": null
+    }
+  },
+  "datos_faltantes": [
+    {
+      "id": "declaracion_V1",
+      "descripcion": "Declaración del conductor de V1 sobre cómo ocurrió el hecho (resumen)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "iluminacion",
+      "descripcion": "Iluminación y visibilidad (día/noche, alumbrado, lluvia, niebla)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "sentido_carril_V1",
+      "descripcion": "Sentido de circulación y carril por el que iba V1",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "sentido_carril_V2",
+      "descripcion": "Sentido de circulación y carril por el que iba V2",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "maniobra_previa_V1",
+      "descripcion": "Maniobra de V1 antes del impacto (frenado, aceleración, giro, cambio de carril, detenido)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "distancia_previa",
+      "descripcion": "Distancia o tiempo de separación entre los vehículos antes de la frenada/evento",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "secuencia_eventos",
+      "descripcion": "Orden y tipo de los impactos (primer contacto e impactos secundarios)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "punto_impacto_via",
+      "descripcion": "Ubicación del punto de impacto en la vía (carril, distancia a una referencia)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "evidencias_sitio",
+      "descripcion": "Evidencias en el sitio (huellas de frenado, restos, intercambio de pintura, marcas)",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "airbags_V1",
+      "descripcion": "Bolsas de aire de V1: cuáles se activaron",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "airbags_V2",
+      "descripcion": "Bolsas de aire de V2: cuáles se activaron",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "danos_V1",
+      "descripcion": "Daños de V1: zonas, altura (cm) y dirección de la fuerza",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "danos_V2",
+      "descripcion": "Daños de V2: zonas, altura (cm) y dirección de la fuerza",
+      "motivo": "sin_informacion"
+    },
+    {
+      "id": "posicion_final_V2",
+      "descripcion": "Posición final de V2: ubicación, rumbo y tipo de barrido",
+      "motivo": "sin_informacion"
+    }
+  ]
+}

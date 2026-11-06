@@ -74,9 +74,37 @@ npm run dev                     # ventana 2 → http://localhost:8443  (Vite ree
 
 1. Abre la pestaña **Entrevista IA** en el panel derecho.
 2. Elige la **modalidad** del siniestro. Los vehículos se proponen solos si ya los registraste en la Escena 02; puedes corregirlos.
-3. Pulsa **Iniciar entrevista** y responde cada pregunta. Escribe `saltar` para omitir un tema.
-4. Al terminar, **Exportar informe** genera el PDF con una página adicional: "7. Entrevista pericial", con todas las respuestas.
+3. Pulsa **Iniciar entrevista** y responde cada pregunta.
+4. **Si no tienes un dato**, pulsa **No tengo esta información** o escribe algo como `no sé`, `desconozco`, `sin información`, `no se pudo determinar` o `saltar`. El asistente lo anota como faltante y pasa a la siguiente pregunta, sin consultar al modelo. Una respuesta como "No se encontraron huellas" sí es un dato y se guarda.
+5. Al terminar aparece **Descargar JSON para Unity** (ver abajo).
+6. **Exportar informe** genera el PDF con una página adicional: "7. Entrevista pericial", con todas las respuestas.
 5. Para empezar de cero, usa el botón de limpiar del encabezado del panel mientras estás en la pestaña Entrevista IA.
+
+## JSON para Unity
+
+Al terminar la entrevista, **Descargar JSON para Unity** genera `EXP-0248-simulacion-unity.json` (formato `cesvi.unity.simulacion` v3). Hay un ejemplo completo en [`docs/unity-simulacion-ejemplo.json`](../docs/unity-simulacion-ejemplo.json).
+
+Junta la geometría del mapa y los datos de la entrevista:
+
+| Sección | Contenido |
+|---|---|
+| `sistema_coordenadas` | Origen (ancla lat/lng), metros, `x` = Este, `y` = Norte, rumbo 0° = Norte en sentido horario |
+| `escena` | Ubicación, modalidad, superficie, iluminación, señalización, etc. |
+| `vehiculos[]` | Posición y rumbo inicial, trayectoria, posición final, velocidad (km/h y m/s, con su fuente), maniobra, zona de impacto, daños, bolsas de aire, declaración |
+| `impacto` | Punto de impacto, tiempo, vehículos, secuencia, ángulo |
+| `evidencias` | Marcadores E1, E2…, descripción del sitio, longitud de huellas de frenado |
+| `objetos[]` | Objetos del catálogo colocados en el mapa |
+| `entrevista.respuestas` | Todas las respuestas tal cual |
+| `datos_faltantes[]` | Temas sin información (`sin_informacion`) o no preguntados (`no_preguntado`) |
+
+En Unity: `position = new Vector3(x, 0, y)` y `rotation = Quaternion.Euler(0, rumbo_deg, 0)`.
+
+Reglas del formato:
+- **Un dato que el perito no tenía queda en `null`** y se lista en `datos_faltantes`. El JSON no inventa valores; la simulación decide qué suponer.
+- **Velocidad:** si la entrevista la da, tiene prioridad sobre la del mapa (`velocidad_fuente` indica cuál se usó).
+- **Campos numéricos** (`velocidad_kmh`, `huellas_frenado_m`, `angulo_deg`, `altura_marca_objeto_cm`): solo se llenan si la respuesta empieza con un número. Si no ("entre 40 y 50"), quedan en `null` y el texto original se conserva en el campo de descripción y en `entrevista.respuestas`.
+
+El botón **Unity** de la barra superior sigue exportando el formato anterior (v2, solo el mapa), sin cambios.
 
 ## Problemas frecuentes
 

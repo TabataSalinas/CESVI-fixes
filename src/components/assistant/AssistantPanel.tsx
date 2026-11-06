@@ -18,6 +18,7 @@ export default function AssistantPanel({
   wizard,
   wizardContent,
   interview,
+  onExportUnitySimulation,
 }: {
   context?: Record<string, unknown>
   onShowProperties?: () => void
@@ -26,6 +27,8 @@ export default function AssistantPanel({
   wizardContent?: ReactNode
   /** Entrevista con el modelo de Ollama. Si se pasa, el panel muestra la pestaña "Entrevista IA". */
   interview?: InterviewController
+  /** Descarga el JSON de simulación para Unity al terminar la entrevista. */
+  onExportUnitySimulation?: () => void
 }) {
   const {
     messages,
@@ -87,6 +90,7 @@ export default function AssistantPanel({
       {showInterview && interview ? (
         <InterviewChat
           controller={interview}
+          onExportUnity={onExportUnitySimulation}
           vehicles={context?.vehicles as Record<string, { type?: string; model?: string }>}
         />
       ) : (

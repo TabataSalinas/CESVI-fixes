@@ -26,6 +26,7 @@ import WizardController from "./components/wizard/WizardController"
 import CoachMarks from "./components/wizard/CoachMarks"
 import { indexToStep, STEP_LABELS, type WizardStep } from "./lib/wizardMachine"
 import { exportUnityJson } from "./lib/exportUnity"
+import { downloadUnitySimulation } from "./lib/exportUnitySimulation"
 import { buildReportPdf } from "./lib/exportPdf.ts"
 import {
   type DroppedItem,
@@ -268,6 +269,27 @@ export default function App() {
       droppedItems: scenario.droppedItems,
     })
     setFeedback("Modelo de exportación EXP-0248 para Unity descargado con éxito")
+  }
+
+  // JSON completo para la simulación en Unity: geometría del mapa + datos de la entrevista
+  const handleExportUnitySimulation = () => {
+    const iv = interview.interview
+    if (!iv) return
+    downloadUnitySimulation({
+      caseId: iv.caseId,
+      anchor,
+      locationQuery,
+      vehicles: scenario.relativeVehicles,
+      impact: scenario.relativeImpact,
+      impactVehicles: wizard.impactVehicles,
+      impactTime: wizard.impactTime,
+      evidence: scenario.relativeEvidence,
+      droppedItems: scenario.relativeDropped,
+      interview: iv,
+      modalidadDescripcion: interview.status?.modalidades[iv.modalidad],
+      modelo: interview.status?.model,
+    })
+    setFeedback(`JSON de simulación ${iv.caseId} para Unity descargado`)
   }
 
   const handleCreateNewCase = () => {
@@ -586,6 +608,7 @@ export default function App() {
           <AssistantPanel
             context={assistantContext}
             interview={interview}
+            onExportUnitySimulation={handleExportUnitySimulation}
             wizard={wizard}
             wizardContent={
               <WizardController
